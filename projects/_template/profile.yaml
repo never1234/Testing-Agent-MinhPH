@@ -1,0 +1,131 @@
+# ==== Project profile: {{PROJECT}} ====
+# Everything project-specific lives here. Secrets go in .env (only variable NAMES here).
+name: "{{PROJECT}}"
+display_name: "{{PROJECT}}"
+report_language: en            # language of report.md and bug text (chat stays Vietnamese)
+environment: staging           # default env name shown in reports
+srs: projects/{{PROJECT}}/docs/srs.md      # main spec (convert PDF/DOCX to .md for best results)
+
+# ---- Platforms: delete the ones the project doesn't have ----
+platforms:
+  android:
+    app_id: com.example.app             # package name
+    device_name: "Xiaomi 14T Pro"       # as shown by `adb devices -l` / mobile-mcp
+    account: A                          # default test account alias (see accounts)
+    build_path: ""                      # optional .apk to install before testing
+  ios:
+    bundle_id: com.example.app
+    device_name: "iPhone 15 Pro"
+    account: B
+  web:
+    url: https://staging.example.com
+    account: A
+    browsers: [chromium]
+    viewports: ["1440x900", "390x844"]
+
+# ---- Test accounts: values live in .env ----
+accounts:
+  A: {user_env: PROJ_A_USER, password_env: PROJ_A_PASS, display_name: "Tester A"}
+  B: {user_env: PROJ_B_USER, password_env: PROJ_B_PASS, display_name: "Tester B"}
+
+# ---- Integration roles (who does what in cross-device tests) ----
+integration:
+  roles:
+    actor: {platform: android, account: A}
+    observer: {platform: ios, account: B}
+
+# ---- Optional backend for API-level checks (read-only GETs) ----
+api:
+  base_url: ""
+
+# ---- Test cases & results: Excel OR Google Sheet ----
+testcases:
+  source: excel                        # excel | gsheet
+  excel_path: projects/{{PROJECT}}/docs/testcases.xlsx
+  gsheet_id: ""                        # the long id in the Google Sheet URL
+  skip_sheets: [Summary]               # tabs that are not test cases
+  columns:                             # header names exactly as in the sheet ("" = not used)
+    id: "ID"
+    description: "Description"
+    precondition: ""
+    steps: ""
+    expected: "Expected Result"
+    priority: ""
+    type: ""
+    status_ios: "Status iOS"
+    status_android: "Status Android"
+    status_web: "Status Web"
+    bug_id: "Bug ID"
+    note: "Note"
+    date: "Date"
+  status_labels:                       # must match the sheet's dropdown values
+    pass: Passed
+    fail: Failed
+    blocked: Pending
+    skip: Skip
+  note_prefix: "[Claude]"              # marks notes written by the agent
+
+# ---- Bug tracker: sheet | trello | jira | mantis | none ----
+bug_tracker:
+  type: sheet
+  title_template: "[{platform}][{module}] {title}"
+  dedup_threshold: 0.6                 # title similarity to flag possible duplicates
+  sheet:                               # "Bugs" tab inside the test-case book (or set source/excel_path/gsheet_id)
+    sheet_name: Bugs
+    id_prefix: BUG_
+  trello:
+    board_id: ""                       # from board URL trello.com/b/<board_id>/...
+    list_name: "To Do"
+    labels: []
+    severity_labels: {critical: Critical, major: Major}
+  jira:
+    deployment: cloud                  # cloud | server
+    project_key: ""
+    issue_type: Bug
+    labels: [claude-qa]
+    severity_to_priority: {critical: Highest, major: High, minor: Medium, trivial: Low}
+  mantis:
+    project_id: 0
+    category: General
+    severity_map: {critical: crash, major: major, minor: minor, trivial: trivial}
+
+# ---- Modules: one per test-case tab ----
+modules:
+  - {id: LOGIN, name: "Login", sheet: "Login", id_prefix: "LOGIN_", priority: high}
+  # - {id: CART, name: "Cart", sheet: "Cart", id_prefix: "CART_", priority: medium}
+
+# ---- QC workflow: how the agent picks up and closes tasks (/qc) ----
+# Queue types: verify_bug | regression | test_feature | write_tc
+# How a queue is selected depends on bug_tracker.type:
+#   trello: lists: [list names], labels_any: [optional label filter]
+#   jira:   jql: 'project = ABC AND status = "Ready for QA"'
+#   mantis / sheet: statuses: [status names]
+workflow:
+  autonomy: standard          # cautious = ask before every write
+                              # standard = approving the shift plan allows claim/comment/move/sheet updates
+                              #            for planned tasks; new bugs + reopen are asked at checkpoints
+                              # full     = all writes automatic (duplicates still never auto-created)
+  assignee: me_or_unassigned  # me | me_or_unassigned | any
+  claim_on_start: true        # assign me + move to in_progress when starting a task
+  shift_minutes: 120          # default time budget for /qc
+  queues:
+    verify_bug:   {lists: ["Ready for Test"], labels_any: [Bug]}
+    test_feature: {lists: ["Ready for Test"]}
+    write_tc:     {lists: ["QC Backlog"]}
+    # regression: {lists: ["Release Candidate"]}
+    # jira example:  verify_bug: {jql: 'project = ABC AND issuetype = Bug AND status = "Resolved"'}
+    # mantis/sheet:  verify_bug: {statuses: [resolved]}       sheet: {statuses: [Fixed]}
+  states:                     # target list (Trello) / transition or status (Jira) / status (Mantis, sheet). "" = don't move
+    in_progress: "QC In Progress"
+    verified: "Done"          # bug fixed and verified
+    reopened: "Reopened"      # bug still reproducible
+    feature_passed: "Done"
+    feature_failed: "Reopened"
+    need_info: ""             # blocked / needs dev answer: comment only
+  priority_map: {Blocker: P0, Critical: P0, Hotfix: P0, High: P1, Medium: P2, Low: P3}   # label / priority name -> P0..P3
+  default_priority: P2
+  waiting_labels: [Blocked, On hold, Need info]   # skipped from today's plan
+  platform_labels: {Android: android, iOS: ios, Web: web}
+  estimates_min: {verify_bug: 15, regression: 60, test_feature: 45, write_tc: 30}
+  feature_pass_with_minor: true   # feature passes if only minor/trivial bugs remain (bugs still logged)
+  regression_radius: 5            # related TCs to re-run around each verified bug

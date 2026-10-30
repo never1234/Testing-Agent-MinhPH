@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__mobile",
+      "mcp__playwright",
+      "mcp__claude-in-chrome",
+      "mcp__claude_ai_Trello",
+      "Bash(.venv/bin/python scripts/:*)",
+      "Bash(adb devices:*)",
+      "Bash(adb -s:*)",
+      "Bash(xcrun xctrace list devices:*)",
+      "Bash(xcrun devicectl:*)",
+      "Bash(xcrun simctl:*)",
+      "Bash(mkdir -p runs/:*)",
+      "Bash(ls:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./secrets/**)"
+    ]
+  }
+}

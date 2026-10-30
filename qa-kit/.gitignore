@@ -1,0 +1,10 @@
+.env
+secrets/*
+!secrets/.gitkeep
+runs/*
+!runs/.gitkeep
+.venv/
+__pycache__/
+*.bak-*.xlsx
+~$*
+.DS_Store
